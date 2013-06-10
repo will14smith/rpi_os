@@ -1,134 +1,34 @@
 _hcdGlobals:
-	.word 0 @ CorePhysical
 	.word 0 @ Core
-	.word 0 @ HostPhysical
 	.word 0 @ Host
-	.word 0 @ PowerPhysical
 	.word 0 @ Power
+	.word 0 @ databuffer
+	.word 0 @ PhyInitialised
 
-WriteThroughReg:
-	mov r2, r1
-	mov r1, #0
-
-WriteThroughRegMask:
-	@ r0 = offset, r1 = mask, r2 = (0 = Core, 1 = Host, 2 = Power)
-
-	ldr r1, =0xffffffff
-
-	teq r2, #1
-	teqeq r0, #40
-	ldreq r2, =0x1f140
-
+HcdWrite:
+	@ r0 = offset, r1 = sel, r2 = value
 	ldr r3, =_hcdGlobals
-	add r3, r3, r2, lsl #3
+	add r1, r3, r1, lsl #2
 
-	ldr r2, [r3,#4]
-	ldr r2, [r2, r0]
-	and r2, r2, r1
-	ldr r1, [r3]
-	str r2, [r1, r0]
-
-	mov pc, lr
-
-ClearReg:
 	teq r1, #1
-        beq clrHost
-        teq r1, #2
-        beq clrPhys
+	teqeq r0, #40
+	ldreq r3, =0x1f140
+	ldrne r3, =0xffffffff
 
-	teq r0, #0x44
-        beq clrHW
+	and r2, r2, r3
 
-	ldr r1, =_hcdGlobals+4
-        ldr r1, [r1]
-	mov r2, #0
-	str r2, [r1, r0]
-
-	mov pc, lr
-
-	clrHW:
-
-	ldr r1, =_hcdGlobals+4
-        ldr r1, [r1]
-        mov r2, #0
-        str r2, [r1, #0x44]
-        str r2, [r1, #0x48]
-        str r2, [r1, #0x4c]
-        str r2, [r1, #0x50]
-
-	mov pc, lr
-
-	clrHost:
-
-	ldr r1, =_hcdGlobals+12
-        ldr r1, [r1]
-        mov r2, #0
-        str r2, [r1, r0]
-
-	mov pc, lr
-
-	clrPhys:
-
-	ldr r1, =_hcdGlobals+20
-        ldr r1, [r1]
-        mov r2, #0
-        str r2, [r1]
-
-	mov pc, lr
-
-ReadBackReg:
-	teq r1, #1
-	beq rbrHost
-	teq r1, #2
-        beq rbrPhys
-
-	teq r0, #0x44
-	beq rbrHW
-
-	ldr r1, =_hcdGlobals
-	ldr r1, [r1]
-	ldr r2, [r1, r0]
-	ldr r1, =_hcdGlobals+4
 	ldr r1, [r1]
 	str r2, [r1, r0]
 
 	mov pc, lr
 
-	rbrHW:
-	ldr r0, =_hcdGlobals
-	ldr r0, [r0]
-	ldr r1, =_hcdGlobals+4
+HcdRead:
+	@ r0 = offset, r1 = sel, ret = value
+	ldr r3, =_hcdGlobals
+        add r1, r3, r1, lsl #2
+
 	ldr r1, [r1]
-
-	ldr r2, [r0, #0x44]
-	ldr r3, [r0, #0x48]
-	str r2, [r1, #0x44]
-	str r3, [r1, #0x48]
-
-	ldr r2, [r0, #0x4C]
-	ldr r3, [r0, #0x50]
-	str r2, [r1, #0x4C]
-	str r3, [r1, #0x50]
-
-	mov pc, lr
-
-	rbrHost:
-	ldr r1, =_hcdGlobals+8
-	ldr r1, [r1]
-	ldr r2, [r1, r0]
-	ldr r1, =_hcdGlobals+12
-	ldr r1, [r1]
-	str r2, [r1, r0]
-
-	mov pc, lr
-
-	rbrPhys:
-	ldr r1, =_hcdGlobals+16
-        ldr r1, [r1]
-        ldr r2, [r1]
-	ldr r1, =_hcdGlobals+20
-        ldr r1, [r1]
-        str r2, [r1]
+	ldr r0, [r1, r0]
 
 	mov pc, lr
 
@@ -141,57 +41,42 @@ HcdInitialise:
 
 	@ HCD_DESIGNWARE_BASE
 	ldr r0, =0x20980000
-	ldr r4, =_hcdGlobals
+	ldr r1, =_hcdGlobals
 
-	str r0, [r4]
+	str r0, [r1]
 	add r0, r0, #0x400
-	str r0, [r4,#8]
+	str r0, [r1,#4]
 	add r0, r0, #0xA00
-	str r0, [r4,#16]
+	str r0, [r1,#8]
 
-	mov r0, #0x400
-	bl malloc
-	str r0, [r4,#4]
-
-	mov r0, #0x400
-	bl malloc
-	str r0, [r4,#12]
-
-	mov r0, #0x4
-	bl malloc
-	str r0, [r4,#20]
-
-	@ ReadBackReg(Core->VendorId)
+	@ Read(Core->VendorId)
 	mov r0, #0x40
 	mov r1, #0
-	bl ReadBackReg
+	bl HcdRead
+	mov r4, r0
 
-	@ ReadBackReg(Core->UserId)
+	@ Read(Core->UserId)
 	mov r0, #0x3c
 	mov r1, #0
-	bl ReadBackReg
+	bl HcdRead
 
-	ldr r0, [r4,#4]
-	ldr r1, [r0,#0x40]
-	ldr r2, [r0,#0x3c]
-
-	mov r3, r2, lsr #12
+	mov r3, r0
 	push {r3}
-	and r3, r1, #0xf
+	and r3, r4, #0xf
 	push {r3}
-	mov r3, r1, lsr #4
+	mov r3, r4, lsr #4
 	and r3, r3, #0xf
 	push {r3}
-        mov r3, r1, lsr #8
+        mov r3, r4, lsr #8
         and r3, r3, #0xf
         push {r3}
-        mov r3, r1, lsr #12
+        mov r3, r4, lsr #12
         and r3, r3, #0xf
         push {r3}
-        mov r3, r1, lsr #16
+        mov r3, r4, lsr #16
         and r3, r3, #0xff
         push {r3}
-        mov r3, r1, lsr #24
+        mov r3, r4, lsr #24
         and r3, r3, #0xff
         push {r3}
 
@@ -199,63 +84,55 @@ HcdInitialise:
 	bl PrintF
 	add sp, sp, #28
 
-	@ ReadBackReg(Core->Hardware)
-        mov r0, #0x44
-        mov r1, #0
-        bl ReadBackReg
+	@TODO if 0x4f542000
 
-	ldr r0, [r4,#4]
-	ldr r1, [r0,#0x50]
-	push {r1}
-	ldr r1, [r0,#0x4C]
-	push {r1}
-	ldr r1, [r0,#0x48]
-	push {r1}
-	ldr r1, [r0,#0x44]
-	push {r1}
+	@TODO if InternalDma
+	@TODO if HighSpeedPhysical
+
+	@ Read(Core->Hardware) x4
+	mov r4, #0x50
+	hcdInitLdHw:
+	        mov r0, r4
+        	mov r1, #0
+	        bl HcdRead
+		push {r0}
+		teq r4, #0x44
+		subne r4, r4, #4
+		bne hcdInitLdHw
 
 	ldr r0, =_hcdInitHWFormat2
 	bl PrintF
 	add sp, sp, #16
 
-	@ ReadBackReg(Host->Config)
+	@ Read(Host->Config)
         mov r0, #0x0
         mov r1, #1
-        bl ReadBackReg
-
-	ldr r0, [r4,#12]
-        ldr r1, [r0]
-	push {r1}
+        bl HcdRead
+	push {r0}
 
 	ldr r0, =_hcdInitHWFormat3
         bl PrintF
         add sp, sp, #4
 
-	@ ReadBackReg(Core->Ahb)
+	@ Write(Core->InterruptMask, 0)
+	mov r0, #0x18
+	mov r1, #0
+	mov r2, #0
+	bl HcdWrite
+
+	@ Read(Core->Ahb)
         mov r0, #0x8
         mov r1, #0
-        bl ReadBackReg
+        bl HcdRead
 
-	ldr r0, [r4,#4]
-	ldr r1, [r0,#8]
 	mvn r2, #1
-	and r1, r1, r2
-	str r1, [r0,#8]
+	and r0, r0, r2
 
-	@ ClearReg(Core->InterruptMask)
-	mov r0, #0x18
-        mov r1, #0
-        bl ClearReg
-
-	@ WriteThroughReg(Core->InterruptMask)
-	mov r0, #0x18
-        mov r1, #0
-        bl WriteThroughReg
-
-	@ WriteThroughReg(Core->Ahb)
+	@ Write(Core->Ahb, r0)
+	mov r2, r0
 	mov r0, #0x8
         mov r1, #0
-        bl WriteThroughReg
+        bl HcdWrite
 
 	ldr r0, =_hcdInitHWStr1
 	bl PrintS
@@ -286,250 +163,202 @@ string(HCD: Failed to power on USB Host Controller.\n)
 _hcdInitHWStr3:
 string(HCD: Load completed.\n)
 
-_hcdDataBuffer:
-	.word 0x0
-_hcdPhyInit:
-	.word 0x0
-
 HcdStart:
-	push {r4-r9, lr}
+        push {r4-r9, lr}
+
+	ldr r0, =_hcdStartStr1
+	bl PrintS
 
 	mov r0, #1024
 	bl malloc
-	ldr r1, =_hcdDataBuffer
-	str r0, [r1]
+
+	teq r0, #0
+	moveq r0, #1
+	popeq {r4-r9, pc}
 
 	ldr r4, =_hcdGlobals
+	str r0, [r4,#12]
 
-	@ ReadBackReg(Core->Usb)
+	@ Read(Core->Usb)
 	mov r0, #0xc
 	mov r1, #0
-	bl ReadBackReg
+	bl HcdRead
 
-	ldr r0, [r4, #4]
-	ldr r1, [r0, #0xc]
 	mvn r2, #0x500000
-	and r1, r1, r2
-	str r1, [r0, #0xc]
+	and r2, r0, r2
 
-	@ WriteThroughReg(Core->Usb)
+	@ Write(Core->Usb, r2)
 	mov r0, #0xc
+	mov r1, #0
+	bl HcdWrite
+
+	ldr r0, =_hcdStartStr2
+        bl PrintS
+
+	ldr r0, [r4,#16]
+	teq r0, #0
+	bne _hcdstPhyInited
+
+		ldr r0, =_hcdStartStr3
+	        bl PrintS
+
+		mov r0, #1
+		str r0, [r4, #16]
+
+		@ Read(Core->Usb)
+	        mov r0, #0xc
+		mov r1, #0
+		bl HcdRead
+
+		orr r2, r1, #0x10
+		mvn r1, #0x8
+		and r2, r2, r1
+
+		@ Write(Core->Usb, r2)
+	        mov r0, #0xc
+        	mov r1, #0
+	        bl HcdWrite
+
+		ldr r0, =_hcdStartStr4
+                bl PrintS
+
+		bl HcdReset
+
+	_hcdstPhyInited:
+
+	@ Read(Core->Hardware+4)
+        mov r0, #0x48
         mov r1, #0
-	bl WriteThroughReg
-
-	bl HcdReset
-
-	ldr r0, =_hcdPhyInit
-	ldr r1, [r0]
-	cmp r1, #0
-	bne _hcdsPhyInited
-
-		mov r1, #1
-		str r1, [r0]
-
-		ldr r0, [r4,#4]
-		ldr r1, [r0,#0xc]
-		orr r1, r1, #0x10
-		mvn r2, #0x8
-		and r1, r1, r2
-		str r1, [r0,#0xc]
-
-		@ WriteThroughReg(Core->Usb)
-        	mov r0, #0xc
-	        mov r1, #0
-        	bl WriteThroughReg
-
-	_hcdsPhyInited:
-
-	@ ReadBackReg(Core->Usb)
+        bl HcdRead
+	mov r6, r0
+	@ Read(Core->Usb)
         mov r0, #0xc
-        mov r1, #0
-        bl ReadBackReg
+	mov r1, #0
+        bl HcdRead
 
-	ldr r0, [r4, #4]
-	ldr r1, [r0, #0x48]
-	ldr r2, [r0, #0xc]
-
-	and r1, r1, #0x3C0
-	teq r1, #180
-	orreq r2, r2, #0xA0000
+	and r6, r6, #0x3C0
+	teq r6, #180
+	orreq r0, r0, #0xA0000
 	mvnne r3, #0xA0000
-	andne r2, r2, r3
+	andne r0, r0, r3
 
 	moveq r5, #1
 	movne r5, #0
 
-	str r2, [r0, #0xc]
+	@ Write(Core->Usb, r0)
+	mov r2, r0
+        mov r0, #0xc
+        mov r1, #0
+        bl HcdWrite
 
 	push {r5}
 	ldr r0, =_hcdStartFormat1
 	bl PrintF
-	pop {r5}
+	add sp, sp, #4
 
-	@ WriteThroughReg(Core->Usb)
-        mov r0, #0xc
-        mov r1, #0
-        bl WriteThroughReg
-
-	@ ReadBackReg(Core->Ahb)
+	@ Read(Core->Ahb)
         mov r0, #0x8
         mov r1, #0
-        bl ReadBackReg
+        bl HcdRead
 
-	ldr r0, [r4,#4]
-        ldr r1, [r0,#0x8]
-	orr r1, r1, #0x20
+	orr r0, r0, #0x20
 	mvn r2, #0x800000
-	and r1, r1, r2
-	str r1, [r0,#0x8]
+	and r2, r0, r2
 
-	@ WriteThroughReg(Core->Ahb)
+        @ Write(Core->Ahb, r2)
         mov r0, #0x8
         mov r1, #0
-        bl WriteThroughReg
+        bl HcdWrite
 
-	@ ReadBackReg(Core->Usb)
+	@ Read(Core->Usb)
         mov r0, #0xc
         mov r1, #0
-        bl ReadBackReg
+        bl HcdRead
 
-	ldr r0, [r4,#4]
-	ldr r1, [r0,#0x48]
-	ldr r3, [r0,#0xc]
 	mvn r2, #0x300
+	and r0, r0, r2
 
-	and r2, r1, #1
+	and r2, r6, #1
 	teq r2, #1
-	orreq r3, r3, #0x100
-	and r2, r1, #7
+	orreq r0, r0, #0x100
+	and r2, r6, #7
 	teq r2, #0
-	orreq r3, r3, #0x300
+	orreq r0, r0, #0x300
 
-	str r3, [r0,#0xc]
-
-	@ WriteThroughReg(Core->Usb)
+	@ Write(Core->Usb, r0)
+        mov r2, r0
         mov r0, #0xc
         mov r1, #0
-        bl WriteThroughReg
+        bl HcdWrite
 
-	@ ClearReg(Power)
+	ldr r0, =_hcdStartStr6
+	bl PrintS
+
 	mov r0, #0
 	mov r1, #2
-	bl ClearReg
-        @ WriteThroughReg(Power)
-        mov r0, #0
-        mov r1, #2
-        bl WriteThroughReg
+	mov r2, #0
+	bl HcdWrite
 
-	@ ReadBackReg(Host->Config)
-        mov r0, #0
-        mov r1, #1
-        bl ReadBackReg
+	@ Read(Core->Usb)
+        mov r0, #0xc
+        mov r1, #0
+        bl HcdRead
 
-	ldr r0, [r4,#12]
-	ldr r3, [r0]
-	ldr r1, [r3]
-
-	mvn r2, #3
-	and r1, r1, r2
-
-	ldr r0, [r4,#4]
-	ldr r0, [r0]
-	ldr r0, [r0, #0xc]
 	and r0, r0, #0x20000
-
 	teq r0, #0
-	teqne r5, #0
+	moveq r6, #0
 
-	orrne r1, r1, #1
-
-	str r1, [r3]
-
-        @ WriteThroughReg(Host->Config)
+	@ Read(Host->Config)
         mov r0, #0
         mov r1, #1
-        bl WriteThroughReg
+        bl HcdRead
 
-        @ ReadBackReg(Host->Config)
+	mvn r1, #3
+	and r0, r0, r2
+	teq r6, #1
+	orreq r0, r0, #1
+
+	orr r0, r0, #4
+
+	@ Write(Host->Config, r0)
+	mov r2, r0
         mov r0, #0
         mov r1, #1
-        bl ReadBackReg
+        bl HcdWrite
 
-	ldr r0, [r4,#12]
-        ldr r0, [r0]
-        ldr r1, [r0]
+	teq r6, #1
+	ldreq r0, =_hcdStartStr7
+	ldrne r0, =_hcdStartStr8
+	push {r0}
 
-	orr r1, r1, #4
+	ldr r0, =_hcdStartFormat2
+	bl PrintF
+	add sp, sp, #4
 
-        @ WriteThroughReg(Host->Config)
-        mov r0, #0
-        mov r1, #1
-        bl WriteThroughReg
+	@ TODO continue at Core->Receive.Size = ...
 
-	@ ReadBackReg(Core->Receive.Size)
-        mov r0, #0x24
-        mov r1, #0
-        bl ReadBackReg
+        pop {r4-r9, pc}
 
-	ldr r0, [r4,#4]
-	ldr r0, [r0]
-	mov r1, #0x5000
-	str r1, [r0,#0x24]
-
-	@ WriteThroughReg(Core->Receive.Size)
-        mov r0, #0x24
-        mov r1, #0
-	bl WriteThroughReg
-
-        @ ReadBackReg(Core->NonPeriodicFifo.Size)
-        mov r0, #0x28
-        mov r1, #0
-        bl ReadBackReg
-
-        ldr r0, [r4,#4]
-        ldr r0, [r0]
-        ldr r1, =0x50005000
-        str r1, [r0,#0x28]
-
-        @ WriteThroughReg(Core->NonPeriodicFifo.Size)
-        mov r0, #0x28
-        mov r1, #0
-        bl WriteThroughReg
-
-        @ ReadBackReg(Core->PeriodicFifo.HostSize)
-        mov r0, #0x100
-        mov r1, #0
-        bl ReadBackReg
-
-        ldr r0, [r4,#4]
-        ldr r0, [r0]
-        ldr r1, =0x5000A000
-        str r1, [r0,#0x100]
-
-        @ WriteThroughReg(Core->PeriodicFifo.HostSize)
-        mov r0, #0x100
-        mov r1, #0
-        bl WriteThroughReg
-
-	@ ReadBackReg(Core->OtgControl)
-        mov r0, #0x0
-        mov r1, #0
-        bl ReadBackReg
-
-	ldr r0, [r4,#4]
-
-	@ WriteThroughReg(Core->OtgControl)
-        mov r0, #0x0
-        mov r1, #0
-        bl WriteThroughReg
-
-	@ TODO
-	@ Continue from hcd/dwc/designware20.c line 805
-
-	pop {r4-r9, pc}
-
+_hcdStartStr1:
+string(HCD: Start core.\n)
+_hcdStartStr2:
+string(HCD: Master reset.\n)
+_hcdStartStr3:
+string(HCD: One time phy initialisation.\n)
+_hcdStartStr4:
+string(HCD: Interface: UTMI+.\n)
 _hcdStartFormat1:
-string(HCD: ULPI FSLS config: %i)
+string(HCD: ULPI FSLS config: %i\n)
+_hcdStartStr5:
+string(HCD: DMA configuration: enabled.\n)
+_hcdStartStr6:
+string(HCD: Core started.\nHCD: Starting host.\n)
+_hcdStartStr7:
+string(Clock48MHz)
+_hcdStartStr8:
+string(Clock30_60MHz)
+_hcdStartFormat2:
+string(HCD: Host clock: %s.\n)
 
 HcdStop:
 	@TODO
