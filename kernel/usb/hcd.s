@@ -60,7 +60,7 @@ HcdInitialise:
 	mov r1, #0
 	bl HcdRead
 
-	mov r3, r0
+	mov r3, r0, lsr #12
 	push {r3}
 	and r3, r4, #0xf
 	push {r3}
@@ -335,7 +335,168 @@ HcdStart:
 	bl PrintF
 	add sp, sp, #4
 
-	@ TODO continue at Core->Receive.Size = ...
+	@ Write(Core->Receive.Size, 0x5000)
+	mov r0, #0x24
+        mov r1, #0
+	mov r2, #0x5000
+        bl HcdWrite
+
+	@ Write(Core->NonPeriodicFifo.Size, 0x50005000)
+	mov r0, #0x28
+        mov r1, #0
+	ldr r2, =0x50005000
+	bl HcdWrite
+
+	@ Write(Core->PeriodicFifo.HostSize, 0x5000A000)
+	mov r0, #0x28
+        mov r1, #0
+        ldr r2, =0x5000A000
+        bl HcdWrite
+
+	ldr r0, =_hcdStartStr9
+	bl PrintS
+
+	@ Read(Core->OtgControl)
+	mov r0, #0
+	mov r1, #0
+	bl HcdRead
+
+	orr r2, r0, #0x400
+
+	@ Write(Core->OtgControl, r2)
+	mov r0, #0
+        mov r1, #0
+	bl HcdWrite
+
+	mov r0, #16
+	bl HcdTransmitFifoFlush
+	teq r0, #0
+	bne _hcdStartDeallocate
+
+	bl HcdReceiveFifoFlush
+	teq r0, #0
+        bne _hcdStartDeallocate
+
+	@ Read(Host->Config)
+        mov r0, #0
+        mov r1, #1
+        bl HcdRead
+
+	and r0, r0, #0x800000
+	teq r0, #0
+	bne _hcdStartNEDD
+
+	@ Read(Core->Hardware+4)
+	mov r0, #0x48
+	mov r1, #0
+	bl HcdRead
+
+	and r0, r0, #0x3C000
+	mov r5, r0, lsr #14
+
+	mov r6, #0
+	_hcdLoop1:
+		cmp r5, r6
+		bge _hcdLoopEnd1
+
+		mov r7, r6, lsl #5
+		add r7, r7, #0x500
+
+		@ Read(Host->Channel[r6].Characteristic)
+		mov r0, r7
+		mov r1, #1
+		bl HcdRead
+
+		ldr r1, =0x800C0000
+		and r2, r0, r1
+		orr r2, r2, #0x40000000
+		orr r2, r2, #0x40000
+
+		@ Write(Host->Channel[r6].Characteristic, r2)
+		mov r0, r7
+                mov r1, #1
+		bl HcdWrite
+
+		add r6, r6, #1
+		b _hcdLoop1
+	_hcdLoopEnd1:
+
+	mov r6, #0
+        _hcdLoop2:
+                cmp r5, r6
+                bge _hcdLoopEnd2
+
+                mov r7, r6, lsl #5
+                add r7, r7, #0x500
+
+                @ Read(Host->Channel[r6].Characteristic)
+                mov r0, r7
+                mov r1, #1
+                bl HcdRead
+
+                ldr r1, =0xC0000
+                and r2, r0, r1
+                orr r2, r2, #0xC0000000
+                orr r2, r2, #0x40000
+
+                @ Write(Host->Channel[r6].Characteristic, r2)
+                mov r0, r7
+                mov r1, #1
+                bl HcdWrite
+
+		mov r8, #0
+		_hcdLoop3:
+			add r8, r8, #1
+			cmp r8, #0x100000
+			ldrgt r0, =_hcdStartFormat3
+			pushgt {r6}
+			blgt PrintF
+			cmp r8, #0x100000
+			addgt sp, sp, #4
+
+			@ Read(Host->Channel[r6].Characteristic)
+	                mov r0, r7
+        	        mov r1, #1
+                	bl HcdRead
+
+			and r0, r0, #0x80000000
+			teq r0, #0
+			bne _hcdLoop3
+
+                add r6, r6, #1
+		b _hcdLoop2
+        _hcdLoopEnd2:
+
+	_hcdStartNEDD:
+	@ Read(Host->Port)
+	mov r0, #0x40
+	mov r1, #1
+	bl HcdRead
+
+	and r0, r0, #0x1000
+	teq r0, #0
+	bne _hcdStartNP
+
+	ldr r0, =_hcdStartStr10
+	bl PrintS
+
+	@ Read(Host->Port)
+        mov r0, #0x40
+        mov r1, #1
+        bl HcdRead
+
+	orr r2, r0, #0x1000
+
+	@ Write(Host->Port, r2)
+	mov r0, #0x40
+        mov r1, #1
+	bl HcdWrite
+
+	_hcdStartNP:
+
+	@TODO Continue from "HCD: Reset port.\n"
+
+	_hcdStartDeallocate:
 
         pop {r4-r9, pc}
 
@@ -359,6 +520,12 @@ _hcdStartStr8:
 string(Clock30_60MHz)
 _hcdStartFormat2:
 string(HCD: Host clock: %s.\n)
+_hcdStartStr9:
+string(HCD: Set HNP: enabled.\n)
+_hcdStartFormat3:
+string(HCD: Unable to clear halt on channel %u.\n)
+_hcdStartStr10:
+string(HCD: Powering up port.\n)
 
 HcdStop:
 	@TODO
