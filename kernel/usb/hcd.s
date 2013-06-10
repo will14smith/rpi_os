@@ -523,6 +523,9 @@ HcdStart:
         mov r1, #0
         bl WriteThroughReg
 
+	@ TODO
+	@ Continue from hcd/dwc/designware20.c line 805
+
 	pop {r4-r9, pc}
 
 _hcdStartFormat1:
