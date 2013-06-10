@@ -1,0 +1,2 @@
+#!/bin/sh
+qemu-system-arm -kernel kernel.img -initrd kernel.img -cpu arm1176 -m 512 -M raspi -device usb-kbd -device usb-mouse -monitor stdio

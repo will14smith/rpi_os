@@ -1,0 +1,5 @@
+include(`kernel/main.s')
+include(`kernel/mailbox.s')
+include(`kernel/display.m4')
+include(`kernel/print.s')
+include(`kernel/usb.m4')

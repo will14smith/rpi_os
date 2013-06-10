@@ -1,0 +1,4 @@
+scripts/demo > demo.out
+scripts/decompile > kernel.out
+diff demo.out kernel.out
+rm demo.out kernel.out

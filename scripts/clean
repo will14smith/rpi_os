@@ -1,0 +1,2 @@
+rm kernel.img
+rm main.s

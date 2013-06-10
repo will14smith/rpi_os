@@ -1,0 +1,7 @@
+include(`kernel/usb/config.s')
+include(`kernel/usb/usbd.s')
+include(`kernel/usb/bcm2835.s')
+include(`kernel/usb/hcd.s')
+include(`kernel/usb/hub.s')
+include(`kernel/usb/hid.s')
+include(`kernel/usb/kbd.s')

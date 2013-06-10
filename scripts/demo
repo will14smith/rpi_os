@@ -1,0 +1,7 @@
+sed 's/;/@/g' main.s > main_tmp.s
+sed 's/.base .*//g' main_tmp.s > main_demo.s
+arm-linux-gnueabi-as main_demo.s -o kernel_demo.o
+arm-linux-gnueabi-objcopy -O binary kernel_demo.o kernel_demo.img
+arm-linux-gnueabi-objdump -b binary -marm -D kernel_demo.img
+rm kernel_demo.img kernel_demo.o main_tmp.s main_demo.s
+

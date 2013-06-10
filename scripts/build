@@ -1,0 +1,4 @@
+#!/bin/sh
+m4 main.m4 > main.s
+arm-asm main.s kernel.img
+#valgrind --leak-check=full arm-asm main.s kernel.img
