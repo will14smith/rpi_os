@@ -1,5 +1,10 @@
 include(`kernel/main.s')
+.ltorg
 include(`kernel/mailbox.s')
+.ltorg
 include(`kernel/display.m4')
+.ltorg
 include(`kernel/print.s')
+.ltorg
 include(`kernel/usb.m4')
+.ltorg

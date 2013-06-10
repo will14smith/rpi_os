@@ -36,6 +36,13 @@ HcdReset:
 	@TODO
 	mov pc, lr
 
+HcdTransmitFifoFlush:
+	@TODO
+	mov pc, lr
+HcdReceiveFifoFlush:
+	@TODO
+	mov pc, lr
+
 HcdInitialise:
 	push {r4-r9, lr}
 
