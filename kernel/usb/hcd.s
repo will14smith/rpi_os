@@ -38,7 +38,7 @@ HcdReset:
 
 	_hcdResetLoop1:
 		cmp r4, #0x100000
-		ldrge r0, =_hcdResetStr1
+		ldrge r0, =_hcdHang
 		blge PrintS
 		cmp r4, #0x100000
 		movge r0, #1
@@ -70,7 +70,7 @@ HcdReset:
 	mov r4, #0
 	_hcdResetLoop2:
 		cmp r4, #0x100000
-                ldrge r0, =_hcdResetStr1
+                ldrge r0, =_hcdHang
                 blge PrintS
                 cmp r4, #0x100000
                 movge r0, #1
@@ -94,17 +94,110 @@ HcdReset:
 
 	pop {r4, pc}
 
-_hcdResetStr1:
+_hcdHang:
 string(HCD: Device Hang!\n)
 
 HcdTransmitFifoFlush:
-	@TODO
+	push {r4, lr}
+
+	and r4, r0, #0x1F
+
+	ldr r0, =_hcdTFFStr1
+	bl PrintS
+
+	teq r4, #16
+	ldreq r0, =_hcdTFFStr2
+	bleq PrintS
+	teq r4, #16
+	beq _hcdTFFeif
+	teq r4, #0
+	ldreq r0, =_hcdTFFStr3
+	bleq PrintS
+	teq r4, #0
+	beq _hcdTFFeif
+
+	mov r0, r4
+	bl PrintU
+
+	_hcdTFFeif:
+
+	mov r0, #0xa @ '\n'
+	bl PrintC
+
+	mov r2, #0x20
+	orr r2, r2, r4, lsl #6
+
+	@ Write(Core->Reset, r2)
+	mov r0, #0x10
+	mov r1, #0
+	bl HcdWrite
+
+	mov r4, #0
+	_hcdTFFLoop1:
+                cmp r4, #0x100000
+                ldrge r0, =_hcdHang
+		blge PrintS
+		cmp r4, #0x100000
+		movge r0, #1
+		popge {r4, pc}
+
+		add r4, r4, #1
+		@ Read(Core->Reset)
+		mov r0, #0x10
+	        mov r1, #0
+        	bl HcdRead
+
+		and r0, r0, #0x20
+		teq r0, #0
+		bne _hcdTFFLoop1
+
 	mov r0, #0
-	mov pc, lr
+	pop {r4, pc}
+
+_hcdTFFStr1:
+string(HCD: TXFlush: )
+_hcdTFFStr2:
+string(All)
+_hcdTFFStr3:
+string(NP)
+
 HcdReceiveFifoFlush:
-	@TODO
-	mov r0, #0
-	mov pc, lr
+	push {r4, lr}
+
+        ldr r0, =_hcdRFFStr1
+        bl PrintS
+
+        @ Write(Core->Reset, 0x10)
+        mov r0, #0x10
+        mov r1, #0
+	mov r2, #0x10
+        bl HcdWrite
+
+        mov r4, #0
+        _hcdRFFLoop1:
+                cmp r4, #0x100000
+                ldrge r0, =_hcdHang
+                blge PrintS
+                cmp r4, #0x100000
+                movge r0, #1
+                popge {r4, pc}
+
+                add r4, r4, #1
+                @ Read(Core->Reset)
+                mov r0, #0x10
+                mov r1, #0
+                bl HcdRead
+
+                and r0, r0, #0x10
+                teq r0, #0
+                bne _hcdRFFLoop1
+
+        mov r0, #0
+        pop {r4, pc}
+
+
+_hcdRFFStr1:
+string(HCD: RXFlush: All\n)
 
 HcdInitialise:
 	push {r4-r9, lr}
@@ -636,9 +729,10 @@ _hcdStartStr12:
 string(HCD: Successfully started.\n)
 
 HcdStop:
-	@TODO
+	@TODO free(databuffer)
+	mov r0, #0
 	mov pc, lr
 
 HcdDeinitialise:
-	@TODO
+	mov r0, #0
 	mov pc, lr

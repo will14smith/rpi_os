@@ -64,6 +64,12 @@ PrintX:
 	mov r4, r0
 	mov r5, #8
 
+	teq r4, #0
+	moveq r0, #0x30 @ '0'
+	bleq PrintC
+	teq r4, #0
+	popeq {r4,r5, pc}
+
 	pxBlankLoop:
 		cmp r5, #1
 		beq hexLoop

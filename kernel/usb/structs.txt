@@ -1,0 +1,27 @@
+UsbDevice {
+        u32 Number                      @ 0x0
+        u32 Speed			@ 0x4
+        u32 Status                      @ 0x8
+        u8 ConfigurationIndex           @ 0xc
+        u8 PortNumber                   @ 0x10
+        u32 Error                       @ 0x14
+
+        void* DeviceDetached            @ 0x18
+        void* DeviceDeallocate          @ 0x1c
+        void* DeviceCheckForChange      @ 0x20
+        void* DeviceChildDetached       @ 0x24
+        void* DeviceChildReset          @ 0x28
+        void* DeviceCheckConnection     @ 0x2c
+
+        DeviceDescriptor Descriptor     @ 0x30
+        ConfigurationDescriptor Config  @ 0x50
+        InterfaceDescriptor Intfcs[8]   @ 0x60
+        EndpointDescriptor EndPt[8][16] @ 0xe0
+        UsbDevice* Parent               @ 0x4e0
+        void* FullConfiguration         @ 0x4e4
+        UsbDriverDataHeader* DriverData @ 0x4e8
+        u32 LastTransfer                @ 0x4ec
+}
+
+
+size = 0x4f0
