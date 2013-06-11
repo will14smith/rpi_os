@@ -33,14 +33,77 @@ HcdRead:
 	mov pc, lr
 
 HcdReset:
-	@TODO
-	mov pc, lr
+	push {r4,lr}
+	mov r4, #0
+
+	_hcdResetLoop1:
+		cmp r4, #0x100000
+		ldrge r0, =_hcdResetStr1
+		blge PrintS
+		cmp r4, #0x100000
+		movge r0, #1
+		popge {r4, pc}
+
+		add r4, r4, #1
+
+		@ Read(Core->Reset)
+		mov r0, #0x10
+		mov r1, #0
+		bl HcdRead
+
+		and r0, r0, #0x80000000
+		teq r0, #0
+		beq _hcdResetLoop1
+
+	@ Read(Core->Reset)
+        mov r0, #0x10
+        mov r1, #0
+        bl HcdRead
+
+	orr r2, r0, #1
+
+	@ Write(Core->Reset, r2)
+	mov r0, #0x10
+        mov r1, #0
+        bl HcdWrite
+
+	mov r4, #0
+	_hcdResetLoop2:
+		cmp r4, #0x100000
+                ldrge r0, =_hcdResetStr1
+                blge PrintS
+                cmp r4, #0x100000
+                movge r0, #1
+                popge {r4, pc}
+
+                add r4, r4, #1
+
+                @ Read(Core->Reset)
+                mov r0, #0x10
+                mov r1, #0
+                bl HcdRead
+
+                and r1, r0, #0x80000000
+                teq r1, #0
+                beq _hcdResetLoop2
+                and r1, r0, #1
+                teq r1, #1
+                beq _hcdResetLoop2
+
+	mov r0, #0
+
+	pop {r4, pc}
+
+_hcdResetStr1:
+string(HCD: Device Hang!\n)
 
 HcdTransmitFifoFlush:
 	@TODO
+	mov r0, #0
 	mov pc, lr
 HcdReceiveFifoFlush:
 	@TODO
+	mov r0, #0
 	mov pc, lr
 
 HcdInitialise:
@@ -501,7 +564,41 @@ HcdStart:
 
 	_hcdStartNP:
 
-	@TODO Continue from "HCD: Reset port.\n"
+	ldr r0, =_hcdStartStr11
+	bl PrintS
+
+	@ Read(Host->Port)
+	mov r0, #0x40
+	mov r1, #1
+	bl HcdRead
+
+	orr r2, r0, #8
+
+	@ Write(Host->Port, r2)
+        mov r0, #0x40
+        mov r1, #1
+        bl HcdWrite
+
+	ldr r0, =50000
+	bl MicroDelay
+
+	@ Read(Host->Port)
+        mov r0, #0x40
+        mov r1, #1
+        bl HcdRead
+
+	mvn r1, #8
+	and r2, r0, r1
+
+	@ Write(Host->Port, r2)
+        mov r0, #0x40
+        mov r1, #1
+        bl HcdWrite
+
+	ldr r0, =_hcdStartStr12
+	bl PrintS
+
+	mov r0, #0
 
 	_hcdStartDeallocate:
 
@@ -533,6 +630,10 @@ _hcdStartFormat3:
 string(HCD: Unable to clear halt on channel %u.\n)
 _hcdStartStr10:
 string(HCD: Powering up port.\n)
+_hcdStartStr11:
+string(HCD: Reset port.\n)
+_hcdStartStr12:
+string(HCD: Successfully started.\n)
 
 HcdStop:
 	@TODO

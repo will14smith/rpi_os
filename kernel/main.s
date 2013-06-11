@@ -95,3 +95,7 @@ memcpy:
         mov pc,lr
 
 include(`kernel/malloc.s')
+
+MicroDelay:
+	@TODO
+	mov pc, lr
